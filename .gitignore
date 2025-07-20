@@ -1,0 +1,74 @@
+# Бинарные файлы и исполняемые файлы, скомпилированные из Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+build/
+
+# Временные файлы и кэши Go
+*.o
+*.a
+*.out
+*.test
+/tmp/
+/vendor/
+
+# Файлы кэша Go
+go.sum
+go.mod.bak
+*.mod.bak
+
+# Логи
+*.log
+logs/
+*.log.*
+
+# Файлы окружения с чувствительными данными
+.env
+.env.local
+*.env
+
+# Файлы конфигурации, специфичные для локальной разработки
+config.local.yml
+config.local.yaml
+
+# Временные файлы и кэши IDE/редакторов
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Тестовые и временные файлы
+coverage.out
+profile.out
+*.prof
+*.cover
+
+# Файлы, связанные с отладкой и профилированием
+debug
+debug.test
+
+# Директории и файлы, связанные с документацией Swagger (если они генерируются)
+docs/docs.go
+docs/swagger.json
+docs/swagger.yaml
+
+# Локальные базы данных или их дампы
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Временные файлы сборки и деплоя
+dist/
+release/
+*.tar.gz
+*.zip
+
+# Кэш и временные файлы операционной системы
+Thumbs.db
+ehthumbs.db
