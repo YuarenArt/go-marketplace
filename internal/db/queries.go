@@ -8,10 +8,10 @@ const (
     `
 
 	QueryGetUserByLogin = `
-        SELECT id, login, created_at
-        FROM users
-        WHERE login = $1
-    `
+		SELECT id, login, password, created_at
+		FROM users
+		WHERE login = $1
+	`
 
 	QueryCreateAd = `
     INSERT INTO ads (title, text, image_url, price, user_id)

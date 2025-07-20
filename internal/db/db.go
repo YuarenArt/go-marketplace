@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgconn"
 	"net/url"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ var (
 	ErrInvalidImageURL    = errors.New("некорректный формат URL изображения")
 	ErrInvalidPrice       = errors.New("цена должна быть в диапазоне от 1 до 100 000 000 (копеек)")
 	ErrInvalidUserID      = errors.New("некорректный идентификатор пользователя")
+	ErrUserAlreadyExists  = errors.New("пользователь с таким логином уже существует")
 )
 
 // DBService предоставляет методы для взаимодействия с базой данных PostgreSQL.
@@ -135,6 +137,12 @@ func (s *DBService) CreateUser(ctx context.Context, login, hashedPassword string
 		&user.ID, &user.Login, &user.CreatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "users_login_key") {
+				return User{}, ErrUserAlreadyExists
+			}
+		}
 		return User{}, fmt.Errorf("failed to create user: %w", err)
 	}
 	return user, nil
@@ -144,7 +152,7 @@ func (s *DBService) CreateUser(ctx context.Context, login, hashedPassword string
 func (s *DBService) UserByLogin(ctx context.Context, login string) (User, error) {
 	var user User
 	err := s.pool.QueryRow(ctx, QueryGetUserByLogin, login).Scan(
-		&user.ID, &user.Login, &user.CreatedAt,
+		&user.ID, &user.Login, &user.Password, &user.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -184,13 +192,13 @@ func (s *DBService) CreateAd(ctx context.Context, ad Ad) (Ad, error) {
 	return createdAd, nil
 }
 
-// Ads возвращает список объявлений по фильтрам, пагинации и сортировке.
+// Ads возвращает список объявлений по фильтрам и сортировке.
 func (s *DBService) Ads(
 	ctx context.Context,
 	userID int,
 	page, size int,
 	sortBy, sortOrder string,
-	minPrice, maxPrice float64,
+	minPrice, maxPrice int64,
 ) ([]Ad, error) {
 	if sortBy != "created_at" && sortBy != "price" {
 		return nil, ErrInvalidSortBy
@@ -226,6 +234,15 @@ func (s *DBService) Ads(
 	}
 
 	return ads, nil
+}
+
+// Exec выполняет SQL-запрос без возврата строк.
+func (s *DBService) Exec(ctx context.Context, sql string, arguments ...interface{}) error {
+	_, err := s.pool.Exec(ctx, sql, arguments...)
+	if err != nil {
+		return fmt.Errorf("failed to execute SQL query: %w", err)
+	}
+	return nil
 }
 
 // validateAd выполняет валидацию объявления.
