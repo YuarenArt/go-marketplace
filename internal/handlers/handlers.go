@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"context"
-	"github.com/YuarenArt/marketgo/internal/config"
-	"github.com/YuarenArt/marketgo/internal/db"
-	"github.com/YuarenArt/marketgo/internal/services"
-	"github.com/gin-gonic/gin"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/YuarenArt/marketgo/internal/config"
+	"github.com/YuarenArt/marketgo/internal/db"
+	"github.com/YuarenArt/marketgo/internal/logging"
+	"github.com/YuarenArt/marketgo/internal/services"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -24,6 +27,7 @@ type HandlerOption func(h *Handler) error
 type Handler struct {
 	authService *services.AuthService
 	adService   *services.AdService
+	logger      logging.Logger
 }
 
 // NewHandler создаёт Handler, применяя набор опций.
@@ -35,6 +39,9 @@ func NewHandler(opts ...HandlerOption) (*Handler, error) {
 			return nil, err
 		}
 	}
+	if h.logger == nil {
+		h.logger = logging.NewLogger(nil)
+	}
 	return h, nil
 }
 
@@ -42,13 +49,16 @@ func NewHandler(opts ...HandlerOption) (*Handler, error) {
 func WithConfig(ctx context.Context, dsn string, cfg *config.Config, dbOptions ...db.DBOption) HandlerOption {
 	return func(h *Handler) error {
 
+		logger := logging.NewLogger(cfg)
 		dbSvc, err := db.NewDBService(ctx, dsn, dbOptions...)
 		if err != nil {
+			logger.Error("Failed to init DBService", "error", err)
 			return err
 		}
 
 		h.authService = services.NewAuthService(dbSvc, cfg.JWTSecret)
 		h.adService = services.NewAdService(dbSvc)
+		h.logger = logger
 		return nil
 	}
 }
@@ -58,6 +68,13 @@ func WithCustomDB(dbSvc *db.DBService) HandlerOption {
 	return func(h *Handler) error {
 		h.authService = services.NewAuthService(dbSvc, "") // можно позже перезадать secret
 		h.adService = services.NewAdService(dbSvc)
+		return nil
+	}
+}
+
+func WithLogger(l logging.Logger) HandlerOption {
+	return func(h *Handler) error {
+		h.logger = l
 		return nil
 	}
 }
@@ -94,18 +111,23 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 // @Failure 400 {object} map[string]string
 // @Router /register [post]
 func (h *Handler) Register(c *gin.Context) {
+	h.logger.Debug("Register endpoint called")
 	var input services.InputUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
+		h.logger.Warn("Register: invalid input", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Debug("Register: input parsed", "login", input.Login)
 	user, err := h.authService.Register(c, input)
 	if err != nil {
+		h.logger.Warn("Register: failed to register", "login", input.Login, "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Info("Register: user registered", "user_id", user.ID, "login", user.Login)
 	c.JSON(http.StatusOK, user)
 }
 
@@ -121,18 +143,23 @@ func (h *Handler) Register(c *gin.Context) {
 // @Failure 401 {object} map[string]string
 // @Router /login [post]
 func (h *Handler) Login(c *gin.Context) {
+	h.logger.Debug("Login endpoint called")
 	var input services.InputUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
+		h.logger.Warn("Login: invalid input", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Debug("Login: input parsed", "login", input.Login)
 	token, err := h.authService.Authenticate(c, input)
 	if err != nil {
+		h.logger.Warn("Login: authentication failed", "login", input.Login, "error", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
+	h.logger.Info("Login: user authenticated", "login", input.Login)
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
@@ -150,24 +177,30 @@ func (h *Handler) Login(c *gin.Context) {
 // @Router /ads [post]
 // @Security BearerAuth
 func (h *Handler) CreateAd(c *gin.Context) {
+	h.logger.Debug("CreateAd endpoint called")
 	userID, ok := c.Get("userID")
 	if !ok {
+		h.logger.Warn("CreateAd: unauthorized access")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var req services.CreateAdRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("CreateAd: invalid input", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Debug("CreateAd: input parsed", "user_id", userID, "title", req.Title)
 	ad, err := h.adService.CreateAd(c, req, userID.(int))
 	if err != nil {
+		h.logger.Warn("CreateAd: failed to create ad", "user_id", userID, "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Info("CreateAd: ad created", "ad_id", ad.ID, "user_id", ad.UserID, "title", ad.Title)
 	c.JSON(http.StatusOK, ad)
 }
 
@@ -189,8 +222,10 @@ func (h *Handler) CreateAd(c *gin.Context) {
 // @Router /ads [get]
 // @Security BearerAuth
 func (h *Handler) Ads(c *gin.Context) {
+	h.logger.Debug("Ads endpoint called")
 	userID, ok := c.Get("userID")
 	if !ok {
+		h.logger.Warn("Ads: unauthorized access")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -208,6 +243,8 @@ func (h *Handler) Ads(c *gin.Context) {
 		maxPrice, _ = strconv.ParseInt(maxStr, 10, 64)
 	}
 
+	h.logger.Debug("Ads: params", "user_id", userID, "page", page, "page_size", pageSize, "sort_by", sortBy, "sort_order", sortOrder, "min_price", minPrice, "max_price", maxPrice)
+
 	req := services.GetAdsRequest{
 		Page:      page,
 		PageSize:  pageSize,
@@ -219,9 +256,17 @@ func (h *Handler) Ads(c *gin.Context) {
 
 	ads, err := h.adService.GetAds(c, req, userID.(int))
 	if err != nil {
+		h.logger.Warn("Ads: failed to fetch ads", "user_id", userID, "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.logger.Info("Ads: ads fetched", "count", len(ads), "user_id", userID)
 	c.JSON(http.StatusOK, ads)
+}
+
+func (h *Handler) Log(level slog.Level, msg string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Log(level, msg, args...)
+	}
 }

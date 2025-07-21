@@ -1,11 +1,13 @@
 package logging
 
 import (
-	"github.com/YuarenArt/marketgo/internal/config"
+	"context"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/YuarenArt/marketgo/internal/config"
 )
 
 // Logger defines the interface for structured logging.
@@ -14,20 +16,25 @@ type Logger interface {
 	Info(msg string, keysAndValues ...interface{})
 	Warn(msg string, keysAndValues ...interface{})
 	Error(msg string, keysAndValues ...interface{})
+	Log(level slog.Level, msg string, keysAndValues ...interface{})
 }
 
 func NewLogger(cfg *config.Config) Logger {
-	return newSlogLogger(cfg)
+	return newSlogLogger(os.Stdout)
+}
+
+// NewFileLogger создает логгер, пишущий в файл
+func NewFileLogger(logFile string) Logger {
+	writer := setupFileWriter(logFile)
+	return newSlogLogger(writer)
 }
 
 type SlogLogger struct {
 	logger *slog.Logger
 }
 
-func newSlogLogger(cfg *config.Config) Logger {
-	writer := os.Stdout
+func newSlogLogger(writer io.Writer) Logger {
 	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{})
-
 	return &SlogLogger{
 		logger: slog.New(handler),
 	}
@@ -63,4 +70,10 @@ func (l *SlogLogger) Warn(msg string, keysAndValues ...interface{}) {
 
 func (l *SlogLogger) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Error(msg, keysAndValues...)
+}
+
+func (l *SlogLogger) Log(level slog.Level, msg string, keysAndValues ...interface{}) {
+	if l != nil && l.logger != nil {
+		l.logger.Log(context.Background(), level, msg, keysAndValues...)
+	}
 }

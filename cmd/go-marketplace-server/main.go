@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/YuarenArt/marketgo/internal/config"
 	"github.com/YuarenArt/marketgo/internal/db"
 	"github.com/YuarenArt/marketgo/internal/handlers"
 	"github.com/YuarenArt/marketgo/internal/logging"
 	"github.com/YuarenArt/marketgo/internal/server"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 // @title Marketplace API
@@ -35,7 +36,7 @@ func main() {
 
 	cfg := config.NewConfig()
 	appLogger := logging.NewLogger(cfg)
-	apiLogger := logging.NewLogger(cfg)
+	apiLogger := logging.NewFileLogger("logs/api.log")
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -48,6 +49,7 @@ func main() {
 	)
 
 	handler, err := handlers.NewHandler(
+		handlers.WithLogger(appLogger),
 		handlers.WithConfig(ctx, dsn, cfg,
 			db.WithMaxConns(20),
 			db.WithMinConns(5),
