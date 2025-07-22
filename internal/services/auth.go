@@ -11,6 +11,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	ErrPasswordLength    = "password must be between 8 and 72 characters"
+	ErrInvalidToken      = "invalid token"
+	ErrInvalidTokenClaim = "invalid token claims"
+	ErrTokenExpired      = "token expired"
+	ErrTokenNotYetValid  = "token not valid yet"
+	ErrTokenIssuedFuture = "token issued in the future"
+	ErrInvalidIssuer     = "invalid issuer"
+	ErrInvalidAudience   = "invalid audience"
+	ErrInvalidUserID     = "invalid user_id claim"
+	Issuer               = "auth-services"
+	Audience             = "marketgo-api"
+)
+
 // InputUserInfo представляет входные данные для регистрации и входа
 type InputUserInfo struct {
 	Login    string `json:"login" binding:"required,min=4,max=20"`
@@ -31,7 +45,7 @@ func NewAuthService(db *db.DBService, secret string) *AuthService {
 // Register регистрирует нового пользователя с хешированным паролем
 func (s *AuthService) Register(ctx context.Context, input InputUserInfo) (db.User, error) {
 	if len(input.Password) < 8 || len(input.Password) > 72 {
-		return db.User{}, errors.New("password must be between 8 and 72 characters")
+		return db.User{}, errors.New(ErrPasswordLength)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
@@ -58,8 +72,8 @@ func (s *AuthService) Authenticate(ctx context.Context, input InputUserInfo) (st
 		"iat":     now.Unix(),
 		"nbf":     now.Unix(),
 		"exp":     now.Add(24 * time.Hour).Unix(),
-		"iss":     "auth-services",
-		"aud":     "marketgo-api",
+		"iss":     Issuer,
+		"aud":     Audience,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -79,12 +93,12 @@ func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 		return 0, err
 	}
 	if !token.Valid {
-		return 0, errors.New("invalid token")
+		return 0, errors.New(ErrInvalidToken)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return 0, errors.New("invalid token claims")
+		return 0, errors.New(ErrInvalidTokenClaim)
 	}
 
 	if err := validateRegisteredClaims(claims); err != nil {
@@ -93,7 +107,7 @@ func (s *AuthService) ValidateToken(tokenString string) (int, error) {
 
 	userID, ok := claims["user_id"].(float64)
 	if !ok || userID <= 0 {
-		return 0, errors.New("invalid user_id claim")
+		return 0, errors.New(ErrInvalidUserID)
 	}
 
 	return int(userID), nil
@@ -104,19 +118,19 @@ func validateRegisteredClaims(claims jwt.MapClaims) error {
 	now := time.Now().Unix()
 
 	if exp, ok := claims["exp"].(float64); !ok || int64(exp) < now {
-		return errors.New("token expired")
+		return errors.New(ErrTokenExpired)
 	}
 	if nbf, ok := claims["nbf"].(float64); ok && int64(nbf) > now {
-		return errors.New("token not valid yet")
+		return errors.New(ErrTokenNotYetValid)
 	}
 	if iat, ok := claims["iat"].(float64); ok && int64(iat) > now+60 {
-		return errors.New("token issued in the future")
+		return errors.New(ErrTokenIssuedFuture)
 	}
-	if iss, ok := claims["iss"].(string); !ok || iss != "auth-services" {
-		return errors.New("invalid issuer")
+	if iss, ok := claims["iss"].(string); !ok || iss != Issuer {
+		return errors.New(ErrInvalidIssuer)
 	}
-	if aud, ok := claims["aud"].(string); !ok || aud != "marketgo-api" {
-		return errors.New("invalid audience")
+	if aud, ok := claims["aud"].(string); !ok || aud != Audience {
+		return errors.New(ErrInvalidAudience)
 	}
 	return nil
 }

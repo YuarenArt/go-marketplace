@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgconn"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,18 +22,32 @@ const (
 	maxTextLength  = 2000
 	minPrice       = 1
 	maxPrice       = 100_000_000
+
+	ErrMsgUserNotFound       = "пользователь с указанным ID не существует"
+	ErrMsgInvalidSortBy      = "допустима сортировка только по полям created_at или price"
+	ErrMsgInvalidSortOrder   = "сортировка должна быть ASC или DESC"
+	ErrMsgInvalidTitleLength = "заголовок должен содержать от 2 до 100 символов"
+	ErrMsgInvalidTextLength  = "текст должен содержать от 1 до 2000 символов"
+	ErrMsgInvalidImageURL    = "некорректный формат URL изображения"
+	ErrMsgInvalidPrice       = "цена должна быть в диапазоне от 1 до 100 000 000 (копеек)"
+	ErrMsgInvalidUserID      = "некорректный идентификатор пользователя"
+	ErrMsgUserAlreadyExists  = "пользователь с таким логином уже существует"
 )
 
+func newError(msg string) error {
+	return errors.New(msg)
+}
+
 var (
-	ErrUserNotFound       = errors.New("пользователь с указанным ID не существует")
-	ErrInvalidSortBy      = errors.New("допустима сортировка только по полям created_at или price")
-	ErrInvalidSortOrder   = errors.New("сортировка должна быть ASC или DESC")
-	ErrInvalidTitleLength = errors.New("заголовок должен содержать от 2 до 100 символов")
-	ErrInvalidTextLength  = errors.New("текст должен содержать от 1 до 2000 символов")
-	ErrInvalidImageURL    = errors.New("некорректный формат URL изображения")
-	ErrInvalidPrice       = errors.New("цена должна быть в диапазоне от 1 до 100 000 000 (копеек)")
-	ErrInvalidUserID      = errors.New("некорректный идентификатор пользователя")
-	ErrUserAlreadyExists  = errors.New("пользователь с таким логином уже существует")
+	ErrUserNotFound       = newError(ErrMsgUserNotFound)
+	ErrInvalidSortBy      = newError(ErrMsgInvalidSortBy)
+	ErrInvalidSortOrder   = newError(ErrMsgInvalidSortOrder)
+	ErrInvalidTitleLength = newError(ErrMsgInvalidTitleLength)
+	ErrInvalidTextLength  = newError(ErrMsgInvalidTextLength)
+	ErrInvalidImageURL    = newError(ErrMsgInvalidImageURL)
+	ErrInvalidPrice       = newError(ErrMsgInvalidPrice)
+	ErrInvalidUserID      = newError(ErrMsgInvalidUserID)
+	ErrUserAlreadyExists  = newError(ErrMsgUserAlreadyExists)
 )
 
 // DBService предоставляет методы для взаимодействия с базой данных PostgreSQL.

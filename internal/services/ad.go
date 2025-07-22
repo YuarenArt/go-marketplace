@@ -6,6 +6,12 @@ import (
 	"github.com/YuarenArt/marketgo/internal/db"
 )
 
+const (
+	DefaultSortBy    = "created_at"
+	DefaultSortOrder = "DESC"
+	DefaultMaxPrice  = 100_000_000
+)
+
 // CreateAdRequest представляет запрос для создания объявления
 type CreateAdRequest struct {
 	Title    string `json:"title" binding:"required,min=2,max=100"`
@@ -25,7 +31,6 @@ type GetAdsRequest struct {
 }
 
 // AdService предоставляет методы для работы с объявлениями
-
 type AdService struct {
 	db *db.DBService
 }
@@ -50,13 +55,13 @@ func (s *AdService) CreateAd(ctx context.Context, req CreateAdRequest, userID in
 // GetAds возвращает список объявлений с учетом фильтров и сортировки
 func (s *AdService) GetAds(ctx context.Context, req GetAdsRequest, userID int) ([]db.Ad, error) {
 	if req.SortBy == "" {
-		req.SortBy = "created_at"
+		req.SortBy = DefaultSortBy
 	}
 	if req.SortOrder == "" {
-		req.SortOrder = "DESC"
+		req.SortOrder = DefaultSortOrder
 	}
 	if req.MaxPrice == 0 {
-		req.MaxPrice = 100_000_000
+		req.MaxPrice = DefaultMaxPrice
 	}
 	return s.db.Ads(ctx, userID, req.Page, req.PageSize, req.SortBy, req.SortOrder, req.MinPrice, req.MaxPrice)
 }
