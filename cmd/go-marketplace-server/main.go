@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/YuarenArt/marketgo/pkg/metrics"
 	"log"
 	"os"
 	"os/signal"
@@ -28,6 +29,9 @@ import (
 // @in header
 // @name X-Auth-Token
 
+// @header Accept-Encoding {string} gzip "Указывает, что клиент поддерживает Gzip-компрессию"
+// @header Content-Encoding {string} gzip "Указывает, что ответ сжат с использованием Gzip"
+
 func main() {
 
 	if err := godotenv.Load(); err != nil {
@@ -51,9 +55,10 @@ func main() {
 	handler, err := handlers.NewHandler(
 		handlers.WithLogger(appLogger),
 		handlers.WithConfig(ctx, dsn, cfg,
-			db.WithMaxConns(20),
-			db.WithMinConns(5),
+			db.WithMaxConns(200),
+			db.WithMinConns(20),
 			db.WithConnMaxLifetime(30*time.Minute),
+			db.WithConnIdleLifetime(5*time.Minute),
 		),
 	)
 	if err != nil {
@@ -61,7 +66,8 @@ func main() {
 		log.Fatal()
 	}
 
-	srv := server.NewServer(cfg, appLogger, apiLogger, handler)
+	metrics := metrics.NewMetrics()
+	srv := server.NewServer(cfg, appLogger, apiLogger, handler, metrics)
 	go func() {
 		if err := srv.Start(ctx); err != nil {
 			appLogger.Error("Server error", "error", err)

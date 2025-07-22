@@ -14,6 +14,12 @@ export PG_USER ?= postgres
 export PG_PASSWORD ?= password
 export PG_DBNAME ?= marketgo
 
+# Путь к файлам vegeta
+VEGETA_TARGETS=load/targets.txt
+VEGETA_RESULTS=load/results.bin
+VEGETA_REPORT=load/report.txt
+VEGETA_PLOT=load/plot.html
+
 .PHONY: all build run test fmt int swagger swagger-ui docker-build docker-up docker-down clean
 
 all: build
@@ -57,4 +63,22 @@ docker-down:
 
 ## Очистка артефактов сборки
 clean:
-	rm -rf $(BIN_DIR) 
+	rm -rf $(BIN_DIR)
+
+## Запуск нагрузочного теста vegeta
+load-test: vegeta-targets
+	mkdir -p load
+	vegeta attack -targets=$(VEGETA_TARGETS) -duration=30s -rate=1000 | tee $(VEGETA_RESULTS) | vegeta report > $(VEGETA_REPORT)
+	vegeta plot load/results.bin > load/plot.html
+	@echo "Готово: текстовый отчёт в $(VEGETA_REPORT), график: открой $(VEGETA_PLOT)"
+
+## Создание файла с целями запроса
+vegeta-targets:
+	mkdir -p load
+	echo "POST http://localhost:$(PORT)/register" > $(VEGETA_TARGETS)
+	echo "POST http://localhost:$(PORT)/login" >> $(VEGETA_TARGETS)
+	echo "GET http://localhost:$(PORT)/ads" >> $(VEGETA_TARGETS)
+
+## Очистка результатов тестов
+load-clean:
+	rm -rf load

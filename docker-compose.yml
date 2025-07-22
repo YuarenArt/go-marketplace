@@ -36,8 +36,17 @@ services:
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/swagger/index.html"]
       interval: 30s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
 
 volumes:
-  pgdata: 
+  pgdata:

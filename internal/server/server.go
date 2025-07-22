@@ -7,13 +7,20 @@ import (
 	"github.com/YuarenArt/marketgo/internal/config"
 	"github.com/YuarenArt/marketgo/internal/handlers"
 	"github.com/YuarenArt/marketgo/internal/logging"
+	"github.com/YuarenArt/marketgo/pkg/metrics"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	_ "github.com/YuarenArt/marketgo/docs"
+)
+
+var (
+	excludedPaths = []string{"/metrics", "/debug/pprof/*"}
 )
 
 // Server представляет HTTP-сервер с роутером Gin и логгированием
@@ -23,10 +30,11 @@ type Server struct {
 	apiLogger logging.Logger
 	config    *config.Config
 	handler   *handlers.Handler
+	metrics   *metrics.Metrics
 }
 
 // NewServer создаёт новый экземпляр Server
-func NewServer(cfg *config.Config, logger, apiLogger logging.Logger, handler *handlers.Handler) *Server {
+func NewServer(cfg *config.Config, logger, apiLogger logging.Logger, handler *handlers.Handler, m *metrics.Metrics) *Server {
 	r := gin.New()
 	s := &Server{
 		router:    r,
@@ -34,9 +42,16 @@ func NewServer(cfg *config.Config, logger, apiLogger logging.Logger, handler *ha
 		apiLogger: apiLogger,
 		config:    cfg,
 		handler:   handler,
+		metrics:   m,
 	}
 
-	r.Use(s.loggingMiddleware, s.corsMiddleware(), gin.Recovery())
+	r.Use(
+		s.loggingMiddleware,
+		s.corsMiddleware(),
+		gin.Recovery(),
+		s.metrics.Middleware(),
+		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths(excludedPaths)),
+	)
 	s.setupRoutes()
 
 	return s
@@ -73,7 +88,16 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
+// setupRoutes настраивает маршруты HTTP-сервера.
+// Регистрирует эндпоинты для:
+// - Регистрации (/register)
+// - Входа (/login)
+// - Работы с объявлениями (/ads)
+// - Swagger-документации (/swagger/*any)
+// - Профилирования (/debug/pprof/*any, /debug/pprof/cmdline, /debug/pprof/profile, /debug/pprof/symbol, /debug/pprof/trace)
+// - Метрик Prometheus (/metrics)
 func (s *Server) setupRoutes() {
+
 	s.router.POST("/register", s.handler.Register)
 	s.router.POST("/login", s.handler.Login)
 
@@ -84,6 +108,26 @@ func (s *Server) setupRoutes() {
 	}
 
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Маршруты для профилирования
+	s.router.GET("/debug/pprof/cmdline", gin.WrapH(http.HandlerFunc(pprof.Cmdline)))
+	s.router.GET("/debug/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
+	s.router.GET("/debug/pprof/symbol", gin.WrapH(http.HandlerFunc(pprof.Symbol)))
+	s.router.GET("/debug/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
+
+	s.setupMetrics()
+
+}
+
+// setupMetrics настраивает маршрут для метрик Prometheus
+// @Summary Метрики Prometheus
+// @Description Возвращает метрики приложения в формате Prometheus. Не использует Gzip-компрессию.
+// @Tags metrics
+// @Produce text/plain
+// @Success 200 {string} string
+// @Router /metrics [get]
+func (s *Server) setupMetrics() {
+	s.router.GET("/metrics", metrics.Handler())
 }
 
 // loggingMiddleware логирует каждый HTTP-запрос
