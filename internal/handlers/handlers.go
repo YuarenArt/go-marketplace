@@ -18,6 +18,8 @@ const (
 	AuthHeader       = "X-Auth-Token"
 	ErrTokenRequired = "token required"
 	ErrInvalidToken  = "invalid token"
+	ErrUnauthorized  = "unauthorized"
+	ErrInvalidCreds  = "invalid credentials"
 )
 
 // HandlerOption описывает функцию настройки Handler
@@ -84,20 +86,25 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader(AuthHeader)
 		if header == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": ErrTokenRequired})
+			abortWithError(c, http.StatusUnauthorized, ErrTokenRequired)
 			return
 		}
 
 		token := strings.TrimSpace(header)
 		userID, err := h.authService.ValidateToken(token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": ErrInvalidToken})
+			abortWithError(c, http.StatusUnauthorized, ErrInvalidToken)
 			return
 		}
 
 		c.Set("userID", userID)
 		c.Next()
 	}
+}
+
+// abortWithError - универсальная функция для возврата ошибки в JSON
+func abortWithError(c *gin.Context, status int, msg string) {
+	c.AbortWithStatusJSON(status, gin.H{"error": msg})
 }
 
 // Register регистрирует нового пользователя
@@ -108,6 +115,7 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 // @Produce json
 // @Param input body services.InputUserInfo true "Данные пользователя"
 // @Success 200 {object} db.User
+// @Header 200 {string} Content-Encoding "gzip"
 // @Failure 400 {object} map[string]string
 // @Router /register [post]
 func (h *Handler) Register(c *gin.Context) {
@@ -115,7 +123,7 @@ func (h *Handler) Register(c *gin.Context) {
 	var input services.InputUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
 		h.logger.Warn("Register: invalid input", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -123,7 +131,7 @@ func (h *Handler) Register(c *gin.Context) {
 	user, err := h.authService.Register(c, input)
 	if err != nil {
 		h.logger.Warn("Register: failed to register", "login", input.Login, "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -139,6 +147,7 @@ func (h *Handler) Register(c *gin.Context) {
 // @Produce json
 // @Param input body services.InputUserInfo true "Данные пользователя"
 // @Success 200 {object} map[string]string
+// @Header 200 {string} Content-Encoding "gzip"
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /login [post]
@@ -147,7 +156,7 @@ func (h *Handler) Login(c *gin.Context) {
 	var input services.InputUserInfo
 	if err := c.ShouldBindJSON(&input); err != nil {
 		h.logger.Warn("Login: invalid input", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -155,7 +164,7 @@ func (h *Handler) Login(c *gin.Context) {
 	token, err := h.authService.Authenticate(c, input)
 	if err != nil {
 		h.logger.Warn("Login: authentication failed", "login", input.Login, "error", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		abortWithError(c, http.StatusUnauthorized, ErrInvalidCreds)
 		return
 	}
 
@@ -172,6 +181,7 @@ func (h *Handler) Login(c *gin.Context) {
 // @Security BearerAuth
 // @Param input body services.CreateAdRequest true "Данные объявления"
 // @Success 200 {object} db.Ad
+// @Header 200 {string} Content-Encoding "gzip"
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /ads [post]
@@ -181,14 +191,14 @@ func (h *Handler) CreateAd(c *gin.Context) {
 	userID, ok := c.Get("userID")
 	if !ok {
 		h.logger.Warn("CreateAd: unauthorized access")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		abortWithError(c, http.StatusUnauthorized, ErrUnauthorized)
 		return
 	}
 
 	var req services.CreateAdRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Warn("CreateAd: invalid input", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -196,7 +206,7 @@ func (h *Handler) CreateAd(c *gin.Context) {
 	ad, err := h.adService.CreateAd(c, req, userID.(int))
 	if err != nil {
 		h.logger.Warn("CreateAd: failed to create ad", "user_id", userID, "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -217,6 +227,7 @@ func (h *Handler) CreateAd(c *gin.Context) {
 // @Param min_price query number false "Минимальная цена"
 // @Param max_price query number false "Максимальная цена"
 // @Success 200 {array} db.Ad
+// @Header 200 {string} Content-Encoding "gzip"
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /ads [get]
@@ -226,7 +237,7 @@ func (h *Handler) Ads(c *gin.Context) {
 	userID, ok := c.Get("userID")
 	if !ok {
 		h.logger.Warn("Ads: unauthorized access")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		abortWithError(c, http.StatusUnauthorized, ErrUnauthorized)
 		return
 	}
 
@@ -257,7 +268,7 @@ func (h *Handler) Ads(c *gin.Context) {
 	ads, err := h.adService.GetAds(c, req, userID.(int))
 	if err != nil {
 		h.logger.Warn("Ads: failed to fetch ads", "user_id", userID, "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		abortWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
