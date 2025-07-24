@@ -5,11 +5,13 @@ import (
 	"os"
 )
 
-// Config содержит настройки сервера и базы данных
+// Config содержит настройки сервера, базы данных и клиента
+// Теперь включает APIURL для client
 type Config struct {
 	Port      string
 	JWTSecret string
 	DB        DBConfig
+	APIURL    string // добавлено
 }
 
 // DBConfig содержит параметры подключения к PostgreSQL
@@ -26,7 +28,7 @@ func NewConfig() *Config {
 	return &Config{
 		Port:      configValue("PORT", "port", "8080", "HTTP server port"),
 		JWTSecret: configValue("SECRET_KEY", "jwt-secret", "supersecret", "JWT secret key"),
-
+		APIURL:    configValue("API_URL", "api-url", "http://localhost:8080", "API base URL for client"),
 		DB: DBConfig{
 			Host:     configValue("PG_HOST", "pg-host", "localhost", "PostgreSQL host"),
 			Port:     configValue("PG_PORT", "pg-port", "5432", "PostgreSQL port"),
