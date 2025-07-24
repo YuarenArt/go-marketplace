@@ -18,7 +18,9 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -49,13 +51,13 @@ services:
       - app
 
   client:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.client
     environment:
       API_URL: "http://app:8080"
-      CMD: "client"
     depends_on:
       - app
-    entrypoint: ["/entrypoint.sh"]
     stdin_open: true
     tty: true
 
