@@ -111,7 +111,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 	}
 
 	reader := resp.Body
-	if resp.Header.Get(acceptEncoding) == gzipEncoding {
+	if resp.Header.Get("Content-Encoding") == gzipEncoding {
 		gzipReader, err := gzip.NewReader(resp.Body)
 		if err != nil {
 			c.logger.Error(errMsgGzipFailed, append(logContext, "error", err)...)
@@ -167,7 +167,8 @@ func (c *Client) Login(ctx context.Context, input *services.InputUserInfo) error
 	var result struct {
 		Token string `json:"token"`
 	}
-	if err := c.doRequest(ctx, http.MethodPost, pathLogin, bytes.NewBuffer(body), false, &result, "login", input.Login); err != nil {
+	err = c.doRequest(ctx, http.MethodPost, pathLogin, bytes.NewBuffer(body), false, &result, "login", input.Login)
+	if err != nil {
 		return err
 	}
 

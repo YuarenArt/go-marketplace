@@ -20,7 +20,7 @@ func main() {
 	cfg := config.NewConfig()
 	appLogger := logging.NewLogger(cfg)
 
-	if err := app_cmd.NewApp(appLogger).Run(); err != nil {
+	if err := app_cmd.NewApp(appLogger, cfg).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Ошибка: %v\n", err)
 		os.Exit(1)
 	}

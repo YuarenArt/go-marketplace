@@ -4,15 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/YuarenArt/marketgo/internal/client"
 	"github.com/YuarenArt/marketgo/internal/config"
 	"github.com/YuarenArt/marketgo/internal/server/services"
 	"github.com/YuarenArt/marketgo/pkg/logging"
+	"os"
+	"strconv"
+	"strings"
 )
 
 // App представляет консольное приложение для работы с MarketGo API
@@ -22,8 +20,7 @@ type App struct {
 }
 
 // NewApp создает новое консольное приложение
-func NewApp(logger logging.Logger) *App {
-	cfg := config.NewConfig()
+func NewApp(logger logging.Logger, cfg *config.Config) *App {
 	return &App{
 		client: client.NewClient(cfg.APIURL, logger),
 		logger: logger,
@@ -198,11 +195,33 @@ func (a *App) handleListAds(args []string) error {
 	if err != nil {
 		return fmt.Errorf("получение объявлений: %w", err)
 	}
-	fmt.Printf("Найдено объявлений: %d\n", len(ads))
-	for _, ad := range ads {
-		fmt.Printf("ID=%d, Title=%s, Price=%d, Created=%s\n",
-			ad.ID, ad.Title, ad.Price, ad.CreatedAt.Format(time.RFC3339))
+
+	if len(ads) == 0 {
+		fmt.Println("Объявления не найдены.")
+		a.logger.Info("Объявления получены", "page", req.Page, "count", len(ads))
+		return nil
 	}
+
+	fmt.Printf("Найдено объявлений: %d\n\n", len(ads))
+	for i, ad := range ads {
+		// Форматируем дату
+		createdAt := ad.CreatedAt.Format("2006-01-02 15:04:05")
+		// Выводим блок для каждого объявления
+		fmt.Println("=============================================================")
+		fmt.Printf("Объявление %d\n", ad.ID)
+		fmt.Println("-------------------------------------------------------------")
+		fmt.Printf("Заголовок:      %s\n", ad.Title)
+		fmt.Printf("Текст:          %s\n", ad.Text)
+		fmt.Printf("Цена:           %d\n", ad.Price)
+		fmt.Printf("URL изображения:%s\n", ad.ImageURL)
+		fmt.Printf("Создано:        %s\n", createdAt)
+		fmt.Println("=============================================================")
+		// Добавляем пустую строку между объявлениями, кроме последнего
+		if i < len(ads)-1 {
+			fmt.Println()
+		}
+	}
+
 	a.logger.Info("Объявления получены", "page", req.Page, "count", len(ads))
 	return nil
 }

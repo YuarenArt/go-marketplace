@@ -12,9 +12,9 @@ import (
 
 	"github.com/YuarenArt/marketgo/internal/config"
 	"github.com/YuarenArt/marketgo/internal/db"
-	"github.com/YuarenArt/marketgo/internal/handlers"
-	"github.com/YuarenArt/marketgo/internal/logging"
 	"github.com/YuarenArt/marketgo/internal/server"
+	"github.com/YuarenArt/marketgo/internal/server/handlers"
+	"github.com/YuarenArt/marketgo/pkg/logging"
 	"github.com/joho/godotenv"
 )
 
