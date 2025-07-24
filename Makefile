@@ -1,8 +1,11 @@
 # Параметры
-APP_NAME=go-marketplace-server
-CMD_DIR=cmd/go-marketplace-server
+APP_NAME_SERVER=go-marketplace-server
+APP_NAME_CLIENT=go-marketplace-client
+CMD_DIR_SERVER=cmd/server
+CMD_DIR_CLIENT=cmd/client
 BIN_DIR=bin
-BIN_PATH=$(BIN_DIR)/$(APP_NAME)
+BIN_PATH_SERVER=$(BIN_DIR)/$(APP_NAME_SERVER)
+BIN_PATH_CLIENT=$(BIN_DIR)/$(APP_NAME_CLIENT)
 SWAGGER_DIR=docs/swagger
 
 # Переменные окружения для локального запуска
@@ -25,13 +28,10 @@ VEGETA_PLOT=load/plot.html
 all: build
 
 ## Сборка бинарника
-build:
-	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_PATH) ./$(CMD_DIR)
+build: build-server
 
 ## Запуск приложения (локально)
-run: build
-	$(BIN_PATH)
+run: run-server
 
 ## Тестирование с покрытием
 test:
@@ -51,7 +51,7 @@ swagger-ui:
 
 ## Сборка Docker-образа
 docker-build:
-	docker build -t $(APP_NAME):latest .
+	docker build -t $(APP_NAME_SERVER):latest .
 
 ## Запуск через docker-compose
 docker-up:
@@ -82,3 +82,24 @@ vegeta-targets:
 ## Очистка результатов тестов
 load-clean:
 	rm -rf load
+
+# Сборка server
+build-server:
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_PATH_SERVER) ./$(CMD_DIR_SERVER)
+
+# Сборка client
+build-client:
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_PATH_CLIENT) ./$(CMD_DIR_CLIENT)
+
+# Сборка обоих
+build-all: build-server build-client
+
+# Запуск server
+run-server: build-server
+	$(BIN_PATH_SERVER)
+
+# Запуск client
+run-client: build-client
+	$(BIN_PATH_CLIENT)

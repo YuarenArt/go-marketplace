@@ -12,14 +12,14 @@ RUN go mod download
 # Копируем исходники
 COPY . .
 
-# Собираем бинарник (статически, без CGO)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/go-marketplace-server ./cmd/go-marketplace-server
+# Собираем бинарник server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
 
 # --- Final stage ---
 FROM scratch
 
-# Копируем бинарник
-COPY --from=builder /app/go-marketplace-server /go-marketplace-server
+# Копируем бинарник server
+COPY --from=builder /app/server /go-marketplace-server
 
 # (Опционально) Копируем Swagger-статик, если нужен (например, docs/swagger/*)
 COPY --from=builder /src/docs/swagger /docs/swagger
@@ -35,5 +35,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --spider -q http://localhost:8080/swagger/index.html || exit 1
 
-# Запуск
+# Запуск только server
 ENTRYPOINT ["/go-marketplace-server"] 

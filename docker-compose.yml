@@ -48,5 +48,16 @@ services:
     depends_on:
       - app
 
+  client:
+    build: .
+    environment:
+      API_URL: "http://app:8080"
+      CMD: "client"
+    depends_on:
+      - app
+    entrypoint: ["/entrypoint.sh"]
+    stdin_open: true
+    tty: true
+
 volumes:
   pgdata:
